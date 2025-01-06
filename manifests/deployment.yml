@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: ecommerceapp 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecommerceapp
+  template:
+    metadata:
+      labels:
+        app: ecommerceapp 
+    spec:
+      containers:
+        - name: ecommerceapp 
+          image: gbeengahdevacr.azurecr.io/ecommerceapp
+          ports:
+          - containerPort: 5001
