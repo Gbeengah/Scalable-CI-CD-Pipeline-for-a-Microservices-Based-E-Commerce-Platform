@@ -1,0 +1,57 @@
+trigger:
+- main  # Automatically trigger the pipeline on commits to the main branch
+
+variables:
+  # Replace with your Azure Container Registry name
+  acrName: 'gbeengahdevacr'
+  imageName: 'product-service'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and Push Docker Image
+  jobs:
+  - job: Build
+    displayName: Build and Push to ACR
+    steps:
+    - task: UseNode@2
+      inputs:
+        version: '18.x'  # Use Node.js 18.x
+
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Install Dependencies and Build'
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: '$(acrName)'  # Azure Container Registry service connection
+        repository: '$(acrName)/$(imageName)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        buildContext: '.'
+        tags: |
+          $(Build.BuildId)
+        arguments: '--platform linux/amd64'  # Specify the architecture explicitly
+
+- stage: Deploy
+  displayName: Deploy to AKS
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy to AKS
+    environment: 'aks-prod'  # Replace with your AKS environment name
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@1
+            inputs:
+              action: 'deploy'
+              manifests: |
+                kubernetes-manifests/*.yaml  # Path to Kubernetes manifest files
+              imagePullSecrets: '$(acrName)'  # ACR image pull secret
+              containers: |
+                $(acrName).azurecr.io/$(imageName):$(Build.BuildId)
