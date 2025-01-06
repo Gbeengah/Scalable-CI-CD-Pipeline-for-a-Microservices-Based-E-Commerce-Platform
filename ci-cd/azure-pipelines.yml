@@ -7,7 +7,9 @@ variables:
   imageName: 'product-service'
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'Default'  # The pool your agent is in
+  demands:
+    - agent.name -equals gbeengah-m1  # Specify the agent by name
 
 stages:
 - stage: Build
