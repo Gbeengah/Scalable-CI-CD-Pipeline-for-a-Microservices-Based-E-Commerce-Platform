@@ -2,41 +2,60 @@ trigger:
 - main  # Automatically trigger the pipeline on commits to the main branch
 
 variables:
-  # Replace with your Azure Container Registry name
-  acrName: 'gbeengahdevacr'
-  imageName: 'product-service'
+  acrName: 'gbeengahdevacr'  # Azure Container Registry name (service connection)
+  productImageName: 'product-service'  # Docker image name for product-service
+  userImageName: 'user-service'  # Docker image name for user-service
+  tag: '$(Build.BuildId)'  # Tag for Docker images
 
 pool:
-  name: 'Default'  # The pool your agent is in
+  name: 'Default'  # Use the Default pool containing self-hosted agents
   demands:
-    - agent.name -equals gbeengah-m1  # Specify the agent by name
+    - Agent.Name -equals vm-for-node-pool-agent  # Use your Azure VM agent
 
 stages:
 - stage: Build
-  displayName: Build and Push Docker Image
+  displayName: Build and Push Docker Images
   jobs:
   - job: Build
-    displayName: Build and Push to ACR
+    displayName: Build and Push Docker Images to ACR
     steps:
-    - task: UseNode@2
-      inputs:
-        version: '18.x'  # Use Node.js 18.x
-
+    # Build and Push Product-Service Docker Image
     - script: |
+        echo "Building Product-Service"
+        cd product-service
         npm install
         npm run build
-      displayName: 'Install Dependencies and Build'
+        cd ..
+      displayName: 'Install Dependencies and Build Product-Service'
 
     - task: Docker@2
+      displayName: 'Build and Push Product-Service Docker Image'
       inputs:
-        containerRegistry: '$(acrName)'  # Azure Container Registry service connection
-        repository: '$(acrName)/$(imageName)'
+        containerRegistry: '$(acrName)'  # Service connection to ACR
+        repository: '$(productImageName)'
         command: 'buildAndPush'
-        Dockerfile: '**/Dockerfile'
-        buildContext: '.'
-        tags: |
-          $(Build.BuildId)
-        arguments: '--platform linux/amd64'  # Specify the architecture explicitly
+        Dockerfile: 'product-service/dockerfile'
+        buildContext: 'product-service'
+        tags: '$(tag)'
+
+    # Build and Push User-Service Docker Image
+    - script: |
+        echo "Building User-Service"
+        cd user-service
+        npm install
+        npm run build
+        cd ..
+      displayName: 'Install Dependencies and Build User-Service'
+
+    - task: Docker@2
+      displayName: 'Build and Push User-Service Docker Image'
+      inputs:
+        containerRegistry: '$(acrName)'  # Service connection to ACR
+        repository: '$(userImageName)'
+        command: 'buildAndPush'
+        Dockerfile: 'user-service/dockerfile'
+        buildContext: 'user-service'
+        tags: '$(tag)'
 
 - stage: Deploy
   displayName: Deploy to AKS
@@ -50,10 +69,16 @@ stages:
         deploy:
           steps:
           - task: KubernetesManifest@1
+            displayName: 'Deploy to AKS'
             inputs:
               action: 'deploy'
+              kubernetesServiceConnection: 'MyAKSCluster-default'  # Specify the service connection
               manifests: |
-                kubernetes-manifests/*.yaml  # Path to Kubernetes manifest files
-              imagePullSecrets: '$(acrName)'  # ACR image pull secret
+                kubernetes-manifests/product-service-deployment.yaml
+                kubernetes-manifests/product-service-service.yaml
+                kubernetes-manifests/user-service-deployment.yaml
+                kubernetes-manifests/user-service-service.yaml
               containers: |
-                $(acrName).azurecr.io/$(imageName):$(Build.BuildId)
+                $(acrName).azurecr.io/$(productImageName):$(tag)
+                $(acrName).azurecr.io/$(userImageName):$(tag)
+              imagePullSecrets: '$(acrName)'  # Reference the service connection for ACR
