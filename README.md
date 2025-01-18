@@ -48,4 +48,4 @@ The source code and manifests are stored in Azure Repos.
 
 
 
-### For step by step guide on how the microservices application was deployed, check the full article here --> https://medium.com/p/7f0715e9b731/edit
+### For step by step guide on how the microservices application was deployed, check the full article here --> (https://medium.com/@gbeengah/scalable-ci-cd-pipeline-for-a-microservices-based-e-commerce-platform-7f0715e9b731)
